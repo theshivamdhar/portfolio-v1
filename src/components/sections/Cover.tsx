@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
-import { motion, type Variants } from 'framer-motion';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { motion, useAnimate, type Variants } from 'framer-motion';
 import Stamp from '../ui/Stamp';
 import Ticker from '../ui/Ticker';
-import Barcode from '../ui/Barcode';
+import WashiTape from '../ui/WashiTape';
 import { tickerItems } from '../../data/content';
 
 const NAME_CHARS = [
@@ -32,10 +32,89 @@ const stampVariant: Variants = {
   }),
 };
 
+// ─── Easter Egg: Web Audio stamp sound ───────────────────────────────────────
+function playStampSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(120, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.35, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.3);
+    setTimeout(() => ctx.close(), 500);
+  } catch {
+    // Web Audio not available — fail silently
+  }
+}
+
+// ─── Easter Egg: Receipt popup ────────────────────────────────────────────────
+function EasterEggReceipt({ visible }: { visible: boolean }) {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+
+  return (
+    <motion.div
+      className="easter-receipt"
+      initial={{ opacity: 0, y: -20, rotate: -2 }}
+      animate={visible ? { opacity: 1, y: 0, rotate: -1.5 } : { opacity: 0, y: -20, rotate: -2 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+      aria-hidden="true"
+    >
+      <div className="er-border-top" />
+      <div className="er-line er-title">BUILDER CERTIFICATION ISSUED</div>
+      <div className="er-line">TO: SHIVAM DHAR</div>
+      <div className="er-line">DATE: {dateStr}, PROBABLY</div>
+      <div className="er-line">VALIDITY: UNTIL NEXT NAP</div>
+      <div className="er-dots">• • • • • • • • • • • • • • • • •</div>
+      <div className="er-line er-small">KEEP THIS RECEIPT. YOU EARNED IT.</div>
+    </motion.div>
+  );
+}
+
+// ─── Stamp impressions that fly across hero ───────────────────────────────────
+interface StampImpression { id: number; x: number; y: number; rotate: number; }
+
 export default function Cover() {
   const nameRef = useRef<HTMLHeadingElement>(null);
+  const heroRef = useRef<HTMLElement>(null);
+  const [scope, animate] = useAnimate();
+  const shakeTriggered = useRef(false);
 
-  // Subtle mouse parallax on name
+  // Easter egg state
+  const [impressions, setImpressions] = useState<StampImpression[]>([]);
+  const [receiptVisible, setReceiptVisible] = useState(false);
+  const eggCounter = useRef(0);
+
+  // Hero shake after name reveal — fires once on load
+  useEffect(() => {
+    if (shakeTriggered.current) return;
+    shakeTriggered.current = true;
+    const lastLetterDelay = 0.1 + (NAME_CHARS.length + SURNAME_CHARS.length - 1) * 0.04;
+    const totalRevealTime = (lastLetterDelay + 0.6) * 1000;
+
+    const timer = setTimeout(async () => {
+      if (!scope.current) return;
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reducedMotion) return;
+      await animate(scope.current, {
+        x: [0, -4, 3, -2, 1, 0],
+        y: [0, 2, -1, 1, 0, 0],
+      }, {
+        duration: 0.4,
+        ease: 'linear',
+      });
+    }, totalRevealTime + 100);
+
+    return () => clearTimeout(timer);
+  }, [animate, scope]);
+
+  // Mouse parallax on name
   useEffect(() => {
     const el = nameRef.current;
     if (!el) return;
@@ -49,8 +128,31 @@ export default function Cover() {
     return () => window.removeEventListener('mousemove', onMove);
   }, []);
 
+  // Easter egg: Builder stamp clicked
+  const handleBuilderClick = useCallback(() => {
+    const hero = heroRef.current;
+    if (!hero) return;
+
+    eggCounter.current++;
+
+    const count = 5 + Math.floor(Math.random() * 2);
+    const newImpressions: StampImpression[] = Array.from({ length: count }, (_, i) => ({
+      id: eggCounter.current * 100 + i,
+      x: 8 + Math.random() * 75,
+      y: 10 + Math.random() * 70,
+      rotate: (Math.random() - 0.5) * 40,
+    }));
+    setImpressions(newImpressions);
+    setReceiptVisible(true);
+    document.body.classList.add('cursor-stamp');
+    setTimeout(() => document.body.classList.remove('cursor-stamp'), 3000);
+    playStampSound();
+    setTimeout(() => setImpressions([]), 1600);
+    setTimeout(() => setReceiptVisible(false), 2000);
+  }, []);
+
   return (
-    <section className="hero torn-bottom" data-section="hero" data-screen-label="01 Hero">
+    <section className="hero torn-bottom" data-section="hero" data-screen-label="01 Hero" ref={heroRef}>
       <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
         <defs>
           <filter id="stamp-roughen">
@@ -63,6 +165,23 @@ export default function Cover() {
           </filter>
         </defs>
       </svg>
+
+      {/* Easter egg: stamp impressions */}
+      {impressions.map((imp) => (
+        <motion.div
+          key={imp.id}
+          className="egg-stamp-impression"
+          style={{ left: `${imp.x}%`, top: `${imp.y}%`, rotate: imp.rotate }}
+          initial={{ opacity: 0, scale: 2 }}
+          animate={{ opacity: [0, 0.7, 0.7, 0], scale: [2, 1, 1, 0.9] }}
+          transition={{ duration: 1.5, times: [0, 0.15, 0.7, 1], ease: 'easeOut' }}
+        >
+          BUILDER
+        </motion.div>
+      ))}
+
+      {/* Easter egg: receipt popup */}
+      <EasterEggReceipt visible={receiptVisible} />
 
       {/* faint background words */}
       <div className="hero-bg-words" aria-hidden="true">
@@ -100,102 +219,108 @@ export default function Cover() {
         transition={{ delay: 0.85, duration: 0.5, ease: 'easeOut' }}
       />
 
-      {/* name */}
+      {/* name — wrapped in useAnimate scope for hero shake */}
       <h1 className="hero-name ink-bleed" ref={nameRef}>
-        <span style={{ display: 'block' }}>
-          {NAME_CHARS.map(({ ch, cls }, i) => (
-            <motion.span
-              key={i} className={`letter ${cls}`}
-              custom={i} variants={letterVariant}
-              initial="hidden" animate="visible"
-            >{ch}</motion.span>
-          ))}
-        </span>
-        <span style={{ display: 'block' }}>
-          {SURNAME_CHARS.map(({ ch, cls, red }, i) => (
-            <motion.span
-              key={i} className={`letter ${cls}`}
-              custom={NAME_CHARS.length + i} variants={letterVariant}
-              initial="hidden" animate="visible"
-              style={red ? { color: 'var(--red)' } : undefined}
-            >{ch}</motion.span>
-          ))}
+        <span ref={scope} style={{ display: 'contents' }}>
+          <span style={{ display: 'block' }}>
+            {NAME_CHARS.map(({ ch, cls }, i) => (
+              <motion.span
+                key={i} className={`letter ${cls}`}
+                custom={i} variants={letterVariant}
+                initial="hidden" animate="visible"
+              >{ch}</motion.span>
+            ))}
+          </span>
+          <span style={{ display: 'block' }}>
+            {SURNAME_CHARS.map(({ ch, cls, red }, i) => (
+              <motion.span
+                key={i} className={`letter ${cls}`}
+                custom={NAME_CHARS.length + i} variants={letterVariant}
+                initial="hidden" animate="visible"
+                style={red ? { color: 'var(--red)' } : undefined}
+              >{ch}</motion.span>
+            ))}
+          </span>
         </span>
       </h1>
 
-      {/* photo */}
-      <motion.figure
-        className="hero-photo"
-        initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.9, duration: 0.7, ease: EASE }}
-      >
-        <span className="hp-tape left" />
-        <span className="hp-tape right" />
-        <img
-          className="hp-img"
-          src="/images/hero-life-wall.jpg"
-          alt="Shivam at Laracon India 2026 in front of the LIFE Magazine signing wall"
-        />
-        <figcaption className="hp-caption">
-          <span><span className="red">●</span>&nbsp; Plate I</span>
-          <span className="center">
-            The author, in front of the LIFE Magazine wall — Laracon.in 2026, Ahmedabad.
-            <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: 'var(--ink-mute)' }}>
-              He wrote: &ldquo;vibe coding is the future.&rdquo; Nobody disagreed.
-            </span>
-          </span>
-          <span>Photo · uncredited</span>
-        </figcaption>
-      </motion.figure>
-
-      {/* stamps */}
-      <div className="hero-stamps">
-        {[
-          { size: 'lg' as const, angle: -8, label: 'Builder' },
-          { size: 'md' as const, angle: 5,  label: 'Ships Things' },
-          { size: 'sm' as const, angle: -3, label: 'Est. 2005' },
-        ].map((s, i) => (
-          <motion.div key={s.label} custom={i} variants={stampVariant} initial="hidden" animate="visible">
-            <Stamp size={s.size} angle={s.angle}>{s.label}</Stamp>
-          </motion.div>
-        ))}
-      </div>
-
-      <motion.span
-        className="sticker hero-sticker"
-        initial={{ opacity: 0, rotate: 0 }} animate={{ opacity: 1, rotate: -3 }}
-        transition={{ delay: 1.1, duration: 0.5 }}
-      >
-        Greater Noida → Internet
-      </motion.span>
-
-      <div className="hero-sub">
+      {/* ── Two-column body: photo (left 65%) + stamps (right 35%) ── */}
+      <div className="hero-body-grid">
+        {/* Left: hero photo */}
         <motion.div
-          className="hero-sub-left"
-          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.0, duration: 0.6 }}
+          className="hero-body-left"
+          initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9, duration: 0.7, ease: EASE }}
         >
-          <span className="dropcap">A</span>
-          twenty-year-old CS student from Greater Noida
-          who builds things between naps. Vibe coder by default.
-          Thinker when it is unavoidable. Ships things
-          nobody asked for but people end up needing.
+          <figure className="hero-photo" style={{ width: '100%', maxWidth: '100%', margin: 0 }}>
+            {/* WashiTape corner on top-left of photo */}
+            <WashiTape
+              variant="corner"
+              style={{ top: -14, left: 20, zIndex: 5 }}
+            />
+            <span className="hp-tape left" />
+            <span className="hp-tape right" />
+            <img
+              className="hp-img"
+              src="/images/hero-life-wall.jpg"
+              alt="Shivam at Laracon India 2026 in front of the LIFE Magazine signing wall"
+            />
+            <figcaption className="hp-caption">
+              <span><span className="red">●</span>&nbsp; Plate I</span>
+              <span className="center">
+                The author, in front of the LIFE Magazine wall — Laracon.in 2026, Ahmedabad.
+              </span>
+              <span>Photo · uncredited</span>
+            </figcaption>
+          </figure>
         </motion.div>
-        <motion.div
-          className="hero-sub-right"
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          transition={{ delay: 1.1, duration: 0.6 }}
-        >
-          <div>↓ on this issue</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'right', lineHeight: 1.6 }}>
-            <span>01 &nbsp; Cover</span>
-            <span>02 &nbsp; Philosophy</span>
-            <span>03 &nbsp; Selected Work</span>
-            <span>04 &nbsp; Where I&apos;ve been</span>
-            <span>05 &nbsp; Beyond the screen</span>
-            <span>06 &nbsp; Get in touch</span>
+
+        {/* Right: stamps + washi tape label */}
+        <div className="hero-body-right">
+          <div className="hero-stamps-col">
+            {[
+              { size: 'lg' as const, angle: -8, label: 'Builder', isBuilder: true },
+              { size: 'md' as const, angle: 5,  label: 'Ships Things', isBuilder: false },
+              { size: 'sm' as const, angle: -3, label: 'Est. 2005', isBuilder: false },
+            ].map((s, i) => (
+              <motion.div
+                key={s.label}
+                custom={i}
+                variants={stampVariant}
+                initial="hidden"
+                animate="visible"
+                onClick={s.isBuilder ? handleBuilderClick : undefined}
+                style={s.isBuilder ? { cursor: 'pointer' } : undefined}
+                title={s.isBuilder ? 'Click me...' : undefined}
+              >
+                <Stamp size={s.size} angle={s.angle}>{s.label}</Stamp>
+              </motion.div>
+            ))}
           </div>
-        </motion.div>
+
+          {/* Greater Noida sticker */}
+          <motion.span
+            className="sticker"
+            style={{ transform: 'rotate(-3deg)', alignSelf: 'flex-end' }}
+            initial={{ opacity: 0, rotate: 0 }} animate={{ opacity: 1, rotate: -3 }}
+            transition={{ delay: 1.1, duration: 0.5 }}
+          >
+            Greater Noida → Internet
+          </motion.span>
+
+          {/* Washi tape vertical strip — right edge, slides in */}
+          <div className="washi-vertical-wrap">
+            <WashiTape
+              variant="vertical"
+              height={200}
+              animate
+              delay={1.4}
+              style={{ position: 'relative' }}
+            >
+              2026
+            </WashiTape>
+          </div>
+        </div>
       </div>
 
       <div className="hero-scroll-cue" aria-hidden="true">
@@ -204,11 +329,18 @@ export default function Cover() {
         <span>↓</span>
       </div>
 
+      {/* Margin annotation — bottom left */}
+      <motion.div
+        className="hero-margin-annotation"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 0.6 }}
+        transition={{ delay: 2, duration: 0.8 }}
+        aria-hidden="true"
+      >
+        note to self: stop tweaking. ship it.
+      </motion.div>
+
       <div className="hero-footer-block">
-        <div className="barcode-row">
-          <Barcode sku="SKU-SHIVAMDHAR-2005" width={240} height={48} className="big" />
-          <span>One-of-one print run · do not photocopy · enjoy responsibly</span>
-        </div>
         <Ticker items={tickerItems} />
       </div>
     </section>

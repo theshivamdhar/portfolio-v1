@@ -1,18 +1,19 @@
-import { motion } from 'framer-motion';
-import { useInView } from 'framer-motion';
+import { motion, useInView } from 'framer-motion';
 import { useRef } from 'react';
 import { tools } from '../../data/content';
+import { PrintRevealBlock } from '../ui/PrintReveal';
 
+// Bidirectional FadeIn — entrance 0.6s, exit implicit via whileInView reset
 function FadeIn({ children, delay = 0, className = '', style = {} }: {
   children: React.ReactNode; delay?: number; className?: string; style?: React.CSSProperties;
 }) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: '-10% 0px' });
   return (
     <motion.div
-      ref={ref} className={className} style={style}
+      className={className}
+      style={style}
       initial={{ opacity: 0, y: 24 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.08 }}
       transition={{ delay, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
     >
       {children}
@@ -20,11 +21,59 @@ function FadeIn({ children, delay = 0, className = '', style = {} }: {
   );
 }
 
+// SVG circle that draws on when scrolled into view
+function CircleWord({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true, amount: 0.5 });
+  return (
+    <span ref={ref} style={{ position: 'relative', display: 'inline-block', color: 'var(--red)', padding: '0 8px' }}>
+      {children}
+      <svg
+        aria-hidden="true"
+        style={{ position: 'absolute', top: '-8px', left: '-6px', width: 'calc(100% + 12px)', height: 'calc(100% + 16px)', overflow: 'visible', pointerEvents: 'none' }}
+        viewBox="0 0 100 32"
+        preserveAspectRatio="none"
+      >
+        <motion.ellipse
+          cx="50" cy="16" rx="46" ry="13"
+          fill="none"
+          stroke="var(--red)"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          initial={{ pathLength: 0, opacity: 0 }}
+          animate={inView ? { pathLength: 1, opacity: 1 } : { pathLength: 0, opacity: 0 }}
+          transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
+        />
+      </svg>
+    </span>
+  );
+}
+
 export default function Philosophy() {
-  const sectionRef = useRef(null);
+  const toolsTrackRef = useRef<HTMLDivElement>(null);
+  const isReducedMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Marquee speed-up on hover (Interaction #8)
+  const handleMarqueeEnter = () => {
+    if (isReducedMotion) return;
+    const el = toolsTrackRef.current;
+    if (!el) return;
+    el.style.transition = 'animation-duration 300ms ease, filter 300ms ease';
+    el.style.animationDuration = '8s';
+    el.style.filter = 'blur(0.5px)';
+  };
+  const handleMarqueeLeave = () => {
+    const el = toolsTrackRef.current;
+    if (!el) return;
+    el.style.transition = 'animation-duration 600ms ease, filter 600ms ease';
+    el.style.animationDuration = '30s';
+    el.style.filter = 'blur(0)';
+  };
 
   return (
-    <section className="sheet" data-section="philosophy" data-screen-label="02 Philosophy" ref={sectionRef}>
+    <section className="sheet" data-section="philosophy" data-screen-label="02 Philosophy">
       <span
         className="bg-word"
         style={{ top: '8%', left: '-4%', transform: 'rotate(-8deg)', fontSize: 'clamp(220px, 28vw, 460px)' }}
@@ -35,7 +84,10 @@ export default function Philosophy() {
         <header className="sec-head">
           <div className="sec-num ink-bleed">02</div>
           <div>
-            <div className="sec-title">On Making, &amp; Other Quiet Religions</div>
+            {/* Printing press reveal (Interaction #3) */}
+            <PrintRevealBlock style={{ display: 'block' }} delay={0}>
+              <span className="sec-title">On Making, &amp; Other Quiet Religions</span>
+            </PrintRevealBlock>
             <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
               <span className="notes-header-badge">notebook · spiral-bound</span>
               <span className="notes-header-badge" style={{ color: 'var(--red)', borderColor: 'var(--red)' }}>2 a.m. edition</span>
@@ -50,19 +102,15 @@ export default function Philosophy() {
           <div className="margin-note" style={{ top: 30, left: 18, width: 84 }}>
             <div className="star">★ ★ ★ ★ ☆</div>
             <div style={{ marginTop: 4 }}>note to self:</div>
-            <div style={{ marginTop: 2, color: 'var(--ink)' }}>re-read this when you are tired and forget why.</div>
+            <div style={{ marginTop: 2, color: 'var(--ink)' }}>the problem is the product brief. stop waiting for someone to assign it.</div>
           </div>
           <div className="margin-note" style={{ top: 360, left: 18, width: 84 }}>
             <div>note to self:</div>
-            <div style={{ marginTop: 2, color: 'var(--ink)' }}>the boring parts are where most of the taste lives.</div>
+            <div style={{ marginTop: 2, color: 'var(--ink)' }}>taste is built by consuming things. watch more films. read more.</div>
           </div>
           <div className="margin-note" style={{ top: 740, left: 18, width: 84 }}>
             <div>note to self:</div>
-            <div style={{ marginTop: 2, color: 'var(--ink)' }}>stop deleting drafts. ship them ugly.</div>
-          </div>
-          <div className="margin-note" style={{ top: 1100, left: 18, width: 84 }}>
-            <div>note to self:</div>
-            <div style={{ marginTop: 2, color: 'var(--ink)' }}>the itch is the gift. do not waste the itch.</div>
+            <div style={{ marginTop: 2, color: 'var(--ink)' }}>still figuring it out. that&apos;s fine.</div>
           </div>
 
           {/* RIGHT MARGIN */}
@@ -85,49 +133,58 @@ export default function Philosophy() {
             <div style={{ marginTop: 2 }}>not sure yet.</div>
           </div>
 
-          {/* coffee stain */}
-          <div className="coffee-stain" style={{ top: 280, right: 280 }} />
+          {/* coffee stain — fades in last, 2s after scroll trigger */}
+          <motion.div
+            className="coffee-stain"
+            style={{ top: 280, right: 280 }}
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true, amount: 0.05 }}
+            transition={{ delay: 2, duration: 0.8 }}
+            aria-hidden="true"
+          />
 
-          {/* main statements */}
+          {/* main statements — bidirectional FadeIn */}
           <FadeIn className="notes-item" style={{ top: 40, left: 160, transform: 'rotate(-3deg)' }}>
             <div className="notes-statement" style={{ fontSize: 52 }}>
-              <span className="circle">Build</span>
+              <CircleWord>Build</CircleWord>
               {' from '}
-              <span className="strike">curriculum</span>
-              <span className="add">confusion</span>.
+              <span className="strike">frustration</span>
+              <span className="add">clarity</span>.
             </div>
           </FadeIn>
 
           <FadeIn className="notes-item" style={{ top: 200, left: 220, transform: 'rotate(2deg)' }} delay={0.05}>
             <div className="notes-statement" style={{ fontSize: 44, color: 'var(--ink-soft)' }}>
               The best tool is the one that{' '}
-              <span className="underline">ships fastest</span>.
+              <span className="strike">I understand</span>
+              <span className="add">actually works</span>.
             </div>
           </FadeIn>
 
           <FadeIn className="notes-item" style={{ top: 360, left: 150, transform: 'rotate(-2deg)' }} delay={0.1}>
             <div className="notes-statement" style={{ fontSize: 48 }}>
-              Ship before it is{' '}
-              <span className="strike">perfect</span>
-              <span className="add">good</span>.
-              <br />
-              <span style={{ fontSize: '0.7em', display: 'inline-block', marginTop: 6 }}>
-                Then make it good <em style={{ color: 'var(--red)', fontStyle: 'italic' }}>in public</em>.
+              Don&apos;t ship until it works.<br />
+              <span style={{ fontSize: '0.85em', display: 'inline-block', marginTop: 8 }}>
+                Then don&apos;t stop shipping.
               </span>
             </div>
           </FadeIn>
 
           <FadeIn className="notes-item" style={{ top: 600, left: 200, transform: 'rotate(3deg)' }} delay={0.15}>
-            <div className="notes-statement" style={{ fontSize: 56 }}>
-              I build because I{' '}
-              <span style={{ color: 'var(--red)', fontWeight: 700 }}>cannot stop</span>{' '}
-              <span className="strike">trying</span>
-              <span className="add">building</span>.
+            <div className="notes-statement" style={{ fontSize: 52 }}>
+              I face a problem.<br />
+              <span style={{ fontSize: '0.72em', display: 'inline-block', marginTop: 8 }}>
+                I figure if I have it,{' '}
+                <span className="strike">someone else does too</span>
+                <span className="add">everyone does</span>.<br />
+                So I fix it.
+              </span>
             </div>
           </FadeIn>
 
           {/* field note card */}
-          <FadeIn className="notes-item paper-card" style={{ top: 820, left: 170, transform: 'rotate(-2deg)', background: 'var(--ink)', color: 'var(--paper)', padding: '22px 24px', width: 340 }} delay={0.2}>
+          <FadeIn className="notes-item paper-card" style={{ top: 820, left: 170, transform: 'rotate(-2deg)', background: 'var(--dark-bg)', color: 'var(--paper)', padding: '22px 24px', width: 340 }} delay={0.2}>
             <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.28em', color: 'rgba(243,236,222,0.5)', marginBottom: 6 }}>
               FIELD NOTE — pinned to page
             </div>
@@ -164,13 +221,13 @@ export default function Philosophy() {
             </div>
           </FadeIn>
 
-          {/* sticky note */}
+          {/* sticky note — spring bounce with scale */}
           <motion.div
             className="notes-item"
             style={{ top: 60, right: 130, transform: 'rotate(5deg)' }}
-            initial={{ y: -60, opacity: 0 }}
-            whileInView={{ y: 0, opacity: 1 }}
-            viewport={{ once: true }}
+            initial={{ y: -60, opacity: 0, scale: 0.8 }}
+            whileInView={{ y: 0, opacity: 1, scale: 1 }}
+            viewport={{ once: true, amount: 0.1 }}
             transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.3 }}
           >
             <div className="notes-sticky">
@@ -206,23 +263,40 @@ export default function Philosophy() {
               the difference between alive<br />
               and dead is rarely the<br />
               framework — it is the<br />
-              <span className="notes-statement"><span className="circle">taste</span></span><br />
+              <CircleWord>taste</CircleWord><br />
               you spend on the parts<br />
               nobody will see.
             </div>
           </div>
 
           <div className="draft-watermark">DRAFT</div>
+
+          {/* Mobile-only: consolidated margin notes at bottom (desktop margin notes are hidden on mobile) */}
+          <div className="mobile-margin-notes-block">
+            {[
+              'note to self: the problem is the product brief. stop waiting for someone to assign it.',
+              'note to self: taste is built by consuming things. watch more films. read more.',
+              'note to self: still figuring it out. that\'s fine.',
+            ].map((note, i) => (
+              <div className="mnb-item" key={i}>
+                <span className="star">★</span>{note}
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* tools marquee */}
+        {/* tools marquee — speed-up on hover (Interaction #8) */}
         <div className="tools-strip">
           <div className="tools-strip-head">
             <span className="smallcaps" style={{ color: 'var(--red)' }}>Tools of the trade</span>
             <span className="mono" style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--ink-mute)' }}>kit · spec · subject to change without notice</span>
           </div>
-          <div className="tools-marquee">
-            <div className="tools-track">
+          <div
+            className="tools-marquee"
+            onMouseEnter={handleMarqueeEnter}
+            onMouseLeave={handleMarqueeLeave}
+          >
+            <div ref={toolsTrackRef} className="tools-track tools-speed">
               {[...tools, ...tools].map((t, i) => (
                 <span className="tool-tag" key={i}>
                   <span className="tool-dot">●</span>{t}
