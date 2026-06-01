@@ -118,13 +118,20 @@ export const projects = [
   },
 ];
 
-export const experience = [
+export const experience: Array<{
+  reqLabel: string;
+  org: string;
+  role: string;
+  period: string;
+  status: 'active' | 'wrapped';
+  note: string;
+}> = [
   {
     reqLabel: "Requirement 01",
     org: "Scaler School of Technology",
     role: "Student intern, remote",
     period: "Apr 2024 — Jul 2024",
-    status: "wrapped" as const,
+    status: "wrapped",
     note: "First real internship. Remote. Short. But it counted.",
   },
   {
@@ -132,18 +139,26 @@ export const experience = [
     org: "Buildspace — Nights & Weekends S5",
     role: "Builder, cohort member",
     period: "Jun 2024 — Jul 2024",
-    status: "wrapped" as const,
+    status: "wrapped",
     note: "12 weeks. 1 shipped thing. Worth every nap.",
   },
 ];
 
-export const education = [
+export const education: Array<{
+  reqLabel: string;
+  org: string;
+  degree: string;
+  period: string;
+  status: 'active' | 'wrapped';
+  set?: string;
+  note: string;
+}> = [
   {
     reqLabel: "Venue 01",
     org: "IILM University, Greater Noida",
     degree: "B.Tech, Computer Science",
     period: "Aug 2024 — Present",
-    status: "active" as const,
+    status: "active",
     set: "Semester 4 of 8",
     note: "GPA is not on the rider. Skipped some lectures. Built things instead.",
   },
@@ -152,7 +167,7 @@ export const education = [
     org: "Govt. Boys Sr. Sec. School, Delhi",
     degree: "Class XII — CBSE, PCM",
     period: "2024",
-    status: "wrapped" as const,
+    status: "wrapped",
     note: "Survived. Moved on. Computers made more sense than physics formulas.",
   },
   {
@@ -160,7 +175,7 @@ export const education = [
     org: "Vinay Nagar Bengali Sr. Sec. School",
     degree: "Class X — CBSE",
     period: "2022",
-    status: "wrapped" as const,
+    status: "wrapped",
     note: "",
   },
 ];
